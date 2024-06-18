@@ -125,7 +125,7 @@ client(hls_url="http://as-hls-ww-live.akamaized.net/pool_904/live/ww/bbc_1xtra/b
 
   - TensorRT. 
   ```bash
-  docker run -p 9090:9090 --runtime=nvidia --gpus all --entrypoint /bin/bash -it ghcr.io/collabora/whisperlive-tensorrt
+  docker run -p 9090:9090 --gpus all --entrypoint /bin/bash -it ghcr.io/collabora/whisperlive-tensorrt
 
   # Build tiny.en engine
   bash build_whisper_tensorrt.sh /app/TensorRT-LLM-examples small.en

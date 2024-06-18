@@ -28,7 +28,8 @@ class Client:
         translate=False,
         model="small",
         srt_file_path="output.srt",
-        use_vad=True
+        use_vad=True,
+        output_callback=None
     ):
         """
         Initializes a Client instance for audio recording and streaming to a server.
@@ -56,6 +57,7 @@ class Client:
         self.use_vad = use_vad
         self.last_segment = None
         self.last_received_segment = None
+        self.output_callback = output_callback
 
         if translate:
             self.task = "translate"
@@ -119,8 +121,10 @@ class Client:
 
         # Truncate to last 3 entries for brevity.
         text = text[-3:]
-        utils.clear_screen()
-        utils.print_transcript(text)
+        # utils.clear_screen()
+        # utils.print_transcript(text)
+        if self.output_callback is not None:
+            self.output_callback(text)
 
     def on_message(self, ws, message):
         """
@@ -274,7 +278,8 @@ class TranscriptionTeeClient:
     Attributes:
         clients (list): the underlying Client instances responsible for handling WebSocket connections.
     """
-    def __init__(self, clients, save_output_recording=False, output_recording_filename="./output_recording.wav"):
+    def __init__(self, clients, save_output_recording=False, output_recording_filename="./output_recording.wav", output_callback=None, input_device_index=None, stop_event: threading.Event = None):
+        self.output_callback = output_callback
         self.clients = clients
         if not self.clients:
             raise Exception("At least one client is required.")
@@ -287,8 +292,12 @@ class TranscriptionTeeClient:
         self.output_recording_filename = output_recording_filename
         self.frames = b""
         self.p = pyaudio.PyAudio()
+        self.stop_event = stop_event
+
+        print("Opening Stream for Device Index: ", input_device_index)
         try:
             self.stream = self.p.open(
+                input_device_index=input_device_index,
                 format=self.format,
                 channels=self.channels,
                 rate=self.rate,
@@ -535,6 +544,9 @@ class TranscriptionTeeClient:
             for _ in range(0, int(self.rate / self.chunk * self.record_seconds)):
                 if not any(client.recording for client in self.clients):
                     break
+                if self.stop_event is not None and self.stop_event.is_set():
+                    self.finalize_recording(n_audio_file)
+                    break
                 data = self.stream.read(self.chunk, exception_on_overflow=False)
                 self.frames += data
 
@@ -549,6 +561,8 @@ class TranscriptionTeeClient:
                         n_audio_file += 1
                     self.frames = b""
             self.write_all_clients_srt()
+
+
 
         except KeyboardInterrupt:
             self.finalize_recording(n_audio_file)
@@ -664,9 +678,13 @@ class TranscriptionClient(TranscriptionTeeClient):
         use_vad=True,
         save_output_recording=False,
         output_recording_filename="./output_recording.wav",
-        output_transcription_path="./output.srt"
+        output_transcription_path="./output.srt",
+        output_callback=None,
+        input_device_index=None,
+        stop_event: threading.Event = None
     ):
-        self.client = Client(host, port, lang, translate, model, srt_file_path=output_transcription_path, use_vad=use_vad)
+        # self.output_callback = output_callback
+        self.client = Client(host, port, lang, translate, model, srt_file_path=output_transcription_path, use_vad=use_vad, output_callback=output_callback)
         if save_output_recording and not output_recording_filename.endswith(".wav"):
             raise ValueError(f"Please provide a valid `output_recording_filename`: {output_recording_filename}")
         if not output_transcription_path.endswith(".srt"):
@@ -675,5 +693,8 @@ class TranscriptionClient(TranscriptionTeeClient):
             self,
             [self.client],
             save_output_recording=save_output_recording,
-            output_recording_filename=output_recording_filename
+            output_recording_filename=output_recording_filename,
+            input_device_index=input_device_index,
+            stop_event=stop_event
         )
+        
