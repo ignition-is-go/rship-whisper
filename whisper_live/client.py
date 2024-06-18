@@ -541,7 +541,7 @@ class TranscriptionTeeClient:
                 shutil.rmtree("chunks")
             os.makedirs("chunks")
         try:
-            for _ in range(0, int(self.rate / self.chunk * self.record_seconds)):
+            while True:
                 if not any(client.recording for client in self.clients):
                     break
                 if self.stop_event is not None and self.stop_event.is_set():
