@@ -21,9 +21,6 @@ python rship_whisper.py
 ### Setting up NVIDIA/TensorRT-LLM for TensorRT backend
 - Please follow [TensorRT_whisper readme](https://github.com/collabora/WhisperLive/blob/main/TensorRT_whisper.md) for setup of [NVIDIA/TensorRT-LLM](https://github.com/NVIDIA/TensorRT-LLM) and for building Whisper-TensorRT engine.
 
-## Getting Started
-The server supports two backends `faster_whisper` and `tensorrt`. If running `tensorrt` backend follow [TensorRT_whisper readme](https://github.com/collabora/WhisperLive/blob/main/TensorRT_whisper.md)
-
 
 ## Whisper Live Server in Docker
 it is required to have a version of the server running to use this application. we recomend the TensorRT variant as described below. 
@@ -52,3 +49,6 @@ it is required to have a version of the server running to use this application. 
 docker run -it -p 9090:9090 ghcr.io/collabora/whisperlive-cpu:latest
 ```
 **Note**: By default we use "small" model size. To build docker image for a different model size, change the size in server.py and then build the docker image.
+
+**Another Note**
+just use the docker compose file by running `docker compose up -d`
