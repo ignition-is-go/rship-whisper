@@ -1,0 +1,13 @@
+version: '3'
+services:
+  whisperlive:
+    image: ghcr.io/collabora/whisperlive-tensorrt
+    command: python3 run_server.py
+    ports:
+      - 9090:9090
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities: [gpu]
+              driver: nvidia
