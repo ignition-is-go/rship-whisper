@@ -1,7 +1,7 @@
-faster-whisper==1.0.1
+faster-whisper
 torch
 websockets
-onnxruntime==1.16.0
+onnxruntime
 numba
 openai-whisper
 kaldialign

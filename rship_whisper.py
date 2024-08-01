@@ -1,3 +1,4 @@
+import asyncio
 from typing import Callable
 from whisper_live.client import TranscriptionClient
 
@@ -24,14 +25,14 @@ instance_name = "Whisper"
 service_type_code = "Whisper"
 color = "#4A006D"
 
-def bootstrap_instance():
+async def bootstrap_instance():
     print("Connecting to Rship at", rship_host, rship_port)
 
     try:
         client = rship.RshipExecClient(rship_host, rship_port)
-        client.connect()
+        await client.connect()
 
-        instance =  client.add_instance(
+        instance = await client.add_instance(
             InstanceArgs(
                 name=instance_name,
                 code=service_type_code,
@@ -48,14 +49,14 @@ def bootstrap_instance():
     except Exception as e:
         print(f"Error during rship setup: {e}")
 
-def start_speaker(instance: InstanceProxy, name: str, source_id: int, url: str, port: int, stop_flag: threading.Event):
-    speaker = instance.add_target(TargetArgs(
+async def start_speaker(instance: InstanceProxy, name: str, source_id: int, url: str, port: int, stop_flag: threading.Event):
+    speaker = await instance.add_target(TargetArgs(
         name=name,
         short_id=name.lower().replace(" ", "_"),
         category="Speaker",
     ))
 
-    currently_updating = speaker.add_emitter(
+    currently_updating = await speaker.add_emitter(
         EmitterArgs(
             name="Current",
             short_id="currently_updating",
@@ -70,7 +71,7 @@ def start_speaker(instance: InstanceProxy, name: str, source_id: int, url: str, 
         )
     )
 
-    confirmed = speaker.add_emitter(
+    confirmed = await speaker.add_emitter(
         EmitterArgs(
             name="Confirmed",
             short_id="confirmed",
@@ -89,11 +90,11 @@ def start_speaker(instance: InstanceProxy, name: str, source_id: int, url: str, 
         )
     )
 
-    transcript = Queue()
+    transcript_queue = Queue()
 
-    run_transcription(currently_updating, confirmed, transcript, url, port, source_id, stop_flag)
+    run_transcription(currently_updating, confirmed, transcript_queue, url, port, source_id, stop_flag)
 
-    return transcript
+    return transcript_queue
 
 def get_input_options():
     p = pyaudio.PyAudio()
@@ -130,7 +131,7 @@ def add_speaker( instance: InstanceProxy, config_frame: CTkFrame, transcript_fra
     stop_event = threading.Event()
     active = False
     
-    def on_start_clicked():
+    async def on_start_clicked():
         nonlocal active
         if active:
             stop_event.set()
@@ -141,11 +142,16 @@ def add_speaker( instance: InstanceProxy, config_frame: CTkFrame, transcript_fra
             active = True
             selected_index = audio_selector.get()
             selected_source_id = get_input_options().index(selected_index)
-            transcript = start_speaker(instance, name_entry.get(), selected_source_id, get_url(), get_port(), stop_event)
+            transcript_queue = await start_speaker(instance, name_entry.get(), selected_source_id, get_url(), get_port(), stop_event)
             start_button.configure(text="Stop Transcription")
-            print_transcript(transcript_frame, transcript)
+            print("Transcription started")
+            print_transcript(transcript_frame, transcript_queue)
 
-    start_button.bind("<Button-1>", lambda e: on_start_clicked())
+    def on_button_click(e):
+        loop = asyncio.get_event_loop()
+        asyncio.run(on_start_clicked())
+
+    start_button.bind("<Button-1>", on_button_click)
 
     return stop_event
 
@@ -170,11 +176,18 @@ def print_transcript(frm: CTkFrame, transcript_queue: Queue):
 
     update_transcript()
 
-
 def run_gui():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    client, instance = loop.run_until_complete(bootstrap_instance())
+    loop.close()
 
-    (_, instance) = bootstrap_instance()
+    if client and instance:
+        run_gui_sync(client, instance)
+    else:
+        print("Failed to setup rship")
 
+def run_gui_sync(client, instance):
     app = CTk()
     app.geometry("400x600")
     app._set_appearance_mode("dark")
@@ -285,9 +298,10 @@ def run_transcription(
 
 
 def main():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
 
-    ui_thread = threading.Thread(target=run_gui)
-    ui_thread.setDaemon(True)
+    ui_thread = threading.Thread(target=run_gui, daemon=True)
     ui_thread.start()
 
     ui_thread.join()
